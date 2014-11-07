@@ -26,6 +26,8 @@ typedef struct _proc_inst_t
 
     uint64_t tag;
 
+    int inst_number;
+
     int fetch;
     int disp;
     int sched;
@@ -46,7 +48,7 @@ typedef struct _proc_stats_t
 typedef struct reg
 {
     bool ready;
-    int64_t tag;
+    uint64_t tag;
 
     reg(){
         ready = true;
@@ -69,12 +71,17 @@ typedef struct {
     bool mark_for_delete;
 } reservation_station;
 
-typedef struct {
+typedef struct function_unit{
     int type;
     bool busy;
     uint64_t tag;
     uint64_t register_number;
     bool completed;
+    proc_inst_t* original_instruction;
+    bool operator== (const function_unit &c1) {
+        return (type == c1.type && busy == c1.busy && tag == c1.tag && register_number == c1.register_number
+                && completed == c1.completed);
+    }
 } function_unit;
 
 typedef struct {
@@ -82,6 +89,104 @@ typedef struct {
     uint64_t tag;
     int register_number;
 } result_bus;
+
+class Scoreboard {
+    vector<function_unit>* available_function_units;
+    vector<function_unit>* busy_function_units;
+    vector<function_unit>* completed_function_units;
+
+    public:
+    Scoreboard(uint64_t k0, uint64_t k1, uint64_t k2){
+        completed_function_units = new vector<function_unit>;
+        busy_function_units = new vector<function_unit>;
+        available_function_units = new vector<function_unit>;
+        for(uint64_t i = 0; i < k0; ++i){
+            available_function_units->push_back({0,0,0,0,0});
+        }
+        for(uint64_t i = 0; i < k1; ++i){
+            available_function_units->push_back({1,0,0,0,0});
+        }
+        for(uint64_t i = 0; i < k2; ++i){
+            available_function_units->push_back({2,0,0,0,0});
+        }
+    }
+
+    void broadcastCompletedInstructions();
+    void updateRegisterFile(vector<reg>* register_file);
+    bool reserveAvailableFunctionUnit(int k, function_unit*& fu);
+    void updateFunctionUnitQueues(){
+        updateAvailableQueue();
+        updateBusyQueue();
+        updateCompletedQueue();
+    }
+    void updateAvailableQueue(){
+        vector<function_unit>* delete_queue = new vector<function_unit>;
+        for(auto& fu : *available_function_units){
+            if(fu.busy){
+                busy_function_units->push_back(fu);
+                delete_queue->push_back(fu);
+            }
+        }
+
+        for(auto& fu : *delete_queue){
+            removeFunctionUnit(available_function_units, fu);
+        }
+
+        delete(delete_queue);
+    }
+    void updateBusyQueue(){
+        vector<function_unit>* delete_queue = new vector<function_unit>;
+        for(auto& fu : *busy_function_units){
+            if(fu.completed){
+                completed_function_units->push_back(fu);
+                delete_queue->push_back(fu);
+            }
+        }
+        for(auto& fu : *delete_queue){
+            removeFunctionUnit(busy_function_units, fu);
+        }
+
+        delete(delete_queue);
+    }
+    void updateCompletedQueue(){
+        vector<function_unit>* delete_queue = new vector<function_unit>;
+        for(auto& fu : *completed_function_units){
+            if(!fu.busy){
+                available_function_units->push_back(fu);
+                delete_queue->push_back(fu);
+            }
+        }
+        for(auto& fu : *delete_queue){
+            removeFunctionUnit(completed_function_units, fu);
+        }
+
+        delete(delete_queue);
+    }
+    void completeBusyUnits(int cycle_count){
+        for(auto& fu : *busy_function_units){
+            fu.original_instruction->exec = cycle_count;
+            fu.completed = true;
+        }
+        updateFunctionUnitQueues();
+    }
+    void removeFunctionUnit(vector<function_unit>* function_unit_queue, function_unit fu){
+        function_unit_queue->erase(remove(function_unit_queue->begin(), function_unit_queue->end(), fu), function_unit_queue->end());
+    }
+    void printFunctionUnits(){
+        for(auto& fu : *available_function_units){
+            printf("available  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d\n",
+                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed);
+        }
+        for(auto& fu : *busy_function_units){
+            printf("busy  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d\n",
+                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed);
+        }
+        for(auto& fu : *completed_function_units){
+            printf("completed  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d\n",
+                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed);
+        }
+    }
+};
 
 class SchedulingQueue {
     vector<reservation_station>* scheduling_queue;
@@ -100,7 +205,9 @@ class SchedulingQueue {
         printf("in use\tfu\tdest_reg\tdest_reg_tag\tsrc1_ready\tsrc1_tag\tsrc2_ready\tsrc2_tag\tfired\t     completed\t      delete\t\n");
         for(entry=scheduling_queue->begin(); entry != scheduling_queue->end(); ++entry){
             printf("%d \t %d \t %d \t\t %lld \t\t %d \t\t %lld \t\t %d \t\t %lld \t\t %d \t\t %d \t\t %d\n",
-                    entry->in_use, entry->fu, entry->dest_reg, entry->dest_reg_tag, entry->src1_ready, entry->src1_tag, entry->src2_ready, entry->src2_tag, entry->fired, entry->completed, entry->mark_for_delete);
+                    entry->in_use, entry->fu, entry->dest_reg, entry->dest_reg_tag, entry->src1_ready,
+                    entry->src1_tag, entry->src2_ready, entry->src2_tag, entry->fired, entry->completed,
+                    entry->mark_for_delete);
         }
 
         printf("\n");
@@ -109,26 +216,7 @@ class SchedulingQueue {
     void markCompletedInstructionsForDeletion();
     void readResultBuses(vector<result_bus>* result_buses);
     vector<reservation_station*>* getUnusedSlots(vector<proc_inst_t>* dispatch_queue);
-};
-
-class Scoreboard {
-    vector<function_unit>* function_units;
-
-    public:
-    Scoreboard(uint64_t k0, uint64_t k1, uint64_t k2){
-        function_units = new vector<function_unit>;
-        for(uint64_t i = 0; i < k0; ++i){
-            function_units->push_back({0,0,0,0,0});
-        }
-        for(uint64_t i = 0; i < k1; ++i){
-            function_units->push_back({1,0,0,0,0});
-        }
-        for(uint64_t i = 0; i < k2; ++i){
-            function_units->push_back({2,0,0,0,0});
-        }
-    }
-
-    void broadcastCompletedInstructions();
+    void fireInstructions(Scoreboard* scoreboard);
 };
 
 bool read_instruction(proc_inst_t* p_inst);
@@ -137,6 +225,7 @@ void setup_proc(uint64_t r, uint64_t k0, uint64_t k1, uint64_t k2, uint64_t f);
 void run_proc(proc_stats_t* p_stats);
 void complete_proc(proc_stats_t* p_stats);
 
+bool sort_by_inst_number(proc_inst_t i, proc_inst_t j);
 void state_update();
 void execute();
 void schedule();

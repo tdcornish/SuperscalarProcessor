@@ -13,7 +13,10 @@ Scoreboard* scoreboard;
 int number_of_instructions_to_fetch;
 int number_of_results_buses;
 
+int cycle_count;
 uint64_t inst_count;
+
+double dispatch_size_per_cycle;
 
 /**
  * Subroutine for initializing the processor. You many add and initialize any global or heap
@@ -53,15 +56,28 @@ void setup_proc(uint64_t r, uint64_t k0, uint64_t k1, uint64_t k2, uint64_t f)
 void run_proc(proc_stats_t* p_stats)
 {
     readInstructions();
+    uint64_t goal = instruction_queue->size();
 
-    for(int i = 0; i < 4; i++){
+    uint64_t max_disp_size = 0;
+    while(completed_instruction_queue->size() != goal){
+        ++cycle_count;
+
+        if(dispatch_queue->size() > max_disp_size){
+            max_disp_size = dispatch_queue->size();
+        }
+        dispatch_size_per_cycle += dispatch_queue->size();
+
         state_update();
         execute();
         schedule();
         dispatch();
-        schedule_queue->printQueue();
         fetch();
     }
+
+    p_stats->retired_instruction = completed_instruction_queue->size();
+    p_stats->avg_disp_size = dispatch_size_per_cycle/cycle_count;
+    p_stats->max_disp_size = max_disp_size;
+    p_stats->cycle_count = cycle_count;
 }
 
 /**
@@ -73,27 +89,42 @@ void run_proc(proc_stats_t* p_stats)
  */
 void complete_proc(proc_stats_t *p_stats)
 {
+    sort(completed_instruction_queue->begin(), completed_instruction_queue->end(), sort_by_inst_number);
+    printf("INST\tFETCH\tDISP\tSCHED\tEXEC\tSTATE\n");
+    for(auto inst : *completed_instruction_queue){
+        printf("%d\t%d\t%d\t%d\t%d\t%d\n", inst.inst_number, inst.fetch, inst.disp, inst.sched, inst.exec, inst.state);
+    }
+    delete(scoreboard);
+    delete(schedule_queue);
+    delete(register_file);
+    delete(result_buses);
+    delete(instruction_queue);
+    delete(dispatch_queue);
+    delete(completed_instruction_queue);
+}
 
+bool sort_by_inst_number(proc_inst_t i, proc_inst_t j){
+    return i.inst_number < j.inst_number;
 }
 
 void state_update(){
-    std::cout << "state update" << std::endl;
     schedule_queue->deleteInstructions();
     schedule_queue->markCompletedInstructionsForDeletion();
 }
 
 void execute(){
-    std::cout << "execute" << std::endl;
     scoreboard->broadcastCompletedInstructions();
+    scoreboard->completeBusyUnits(cycle_count);
+    scoreboard->broadcastCompletedInstructions();
+    scoreboard->updateRegisterFile(register_file);
+    schedule_queue->fireInstructions(scoreboard);
 }
 
 void schedule(){
-    std::cout << "schedule"<< std::endl;
     schedule_queue->readResultBuses(result_buses);
 }
 
 void dispatch(){
-    std::cout << "dispatch" << std::endl;
     vector<reservation_station*>* unused_slots = schedule_queue->getUnusedSlots(dispatch_queue);
 
     vector<reservation_station*>::iterator entry;
@@ -108,10 +139,14 @@ void dispatch(){
 }
 
 void fetch(){
-    std::cout << "fetch" << std::endl;
-    for(int i = 0; i < number_of_instructions_to_fetch; ++i){
-        dispatch_queue->push_back(instruction_queue->front());
-        instruction_queue->erase(instruction_queue->begin());
+    if(!instruction_queue->empty()){
+        for(int i = 0; i < number_of_instructions_to_fetch; ++i){
+            proc_inst_t fetched_inst = instruction_queue->front();
+            fetched_inst.fetch = cycle_count;
+            fetched_inst.disp = cycle_count + 1;
+            dispatch_queue->push_back(fetched_inst);
+            instruction_queue->erase(instruction_queue->begin());
+        }
     }
 }
 
@@ -121,6 +156,7 @@ void initReservationStation(reservation_station* entry){
     proc_inst_t inst = dispatch_queue->front();
     dispatch_queue->erase(dispatch_queue->begin());
 
+    inst.sched = cycle_count + 1;
     current_slot->original_instruction = inst;
     current_slot->in_use = true;
     current_slot->fu = inst.op_code;
@@ -176,6 +212,10 @@ void readInstructions(){
     while(read_instruction(current_instruction)){
         ++inst_count;
         current_instruction->tag = inst_count;
+        current_instruction->inst_number = inst_count;
+        if(current_instruction->op_code == -1){
+            current_instruction->op_code = 1;
+        }
         instruction_queue->push_back(*current_instruction);
     }
 }
@@ -199,14 +239,19 @@ void SchedulingQueue::deleteInstructions(){
     for(auto& entry : *scheduling_queue){
         if(entry.mark_for_delete){
             entry.in_use = false;
+            entry.fired = 0;
+            entry.completed = 0;
+            entry.mark_for_delete = 0;
         }
     }
 }
 
 void SchedulingQueue::markCompletedInstructionsForDeletion(){
     for(auto& entry : *scheduling_queue){
-        if(entry.completed){
+        if(entry.completed && entry.in_use && !entry.mark_for_delete){
             entry.mark_for_delete = true;
+            entry.original_instruction.state = cycle_count;
+            completed_instruction_queue->push_back(entry.original_instruction);
         }
     }
 }
@@ -217,6 +262,7 @@ void SchedulingQueue::readResultBuses(vector<result_bus>* result_buses){
             for(auto bus : *result_buses){
                 if(bus.busy && bus.tag == entry.src1_tag){
                     entry.src1_ready = true;
+                    entry.src1_tag = 0;
                 }
             }
         }
@@ -225,6 +271,7 @@ void SchedulingQueue::readResultBuses(vector<result_bus>* result_buses){
             for(auto bus : *result_buses){
                 if(bus.busy && bus.tag == entry.src2_tag){
                     entry.src2_ready = true;
+                    entry.src2_tag = 0;
                 }
             }
         }
@@ -244,11 +291,70 @@ void SchedulingQueue::readResultBuses(vector<result_bus>* result_buses){
     }
 }
 
-void Scoreboard::broadcastCompletedInstructions(){
-    for(auto& rs : *result_buses){
-        if(!rs.busy){
-            for(auto& fu : *function_units){
+void SchedulingQueue::fireInstructions(Scoreboard* scoreboard){
+    for(auto& entry : *scheduling_queue){
+        if(entry.src1_ready && entry.src2_ready && !entry.fired){
+            function_unit* fu_to_use;
+            bool found_available_fu = scoreboard->reserveAvailableFunctionUnit(entry.fu, fu_to_use);
 
+            if(found_available_fu){
+                fu_to_use->busy = true;
+                fu_to_use->tag = entry.dest_reg_tag;
+                fu_to_use->register_number = entry.dest_reg;
+                fu_to_use->completed = false;
+                fu_to_use->original_instruction = &entry.original_instruction;
+
+                entry.fired = true;
+            }
+        }
+    }
+
+    scoreboard->updateFunctionUnitQueues();
+}
+
+void Scoreboard::broadcastCompletedInstructions(){
+    for(auto& rb : *result_buses){
+        if(!rb.busy && !completed_function_units->empty()){
+            function_unit* lowestCompletedTag = &completed_function_units->front();
+            for(auto& fu : *completed_function_units){
+                if(fu.tag < lowestCompletedTag->tag){
+                    lowestCompletedTag = &fu;
+                }
+            }
+
+            rb.busy = true;
+            rb.tag = lowestCompletedTag->tag;
+            rb.register_number = lowestCompletedTag->register_number;
+            lowestCompletedTag->busy = false;
+
+            updateFunctionUnitQueues();
+        }
+    }
+
+    scoreboard->updateFunctionUnitQueues();
+}
+
+bool Scoreboard::reserveAvailableFunctionUnit(int k, function_unit*& fu){
+    bool found = false;
+    for(auto& function_unit : *available_function_units){
+        if(!function_unit.busy && function_unit.type == k){
+            fu = &function_unit;
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+void Scoreboard::updateRegisterFile(vector<reg>* register_file){
+    for(auto rb : *result_buses){
+        int register_number = rb.register_number;
+        if(register_number != -1){
+            reg* reg = &register_file->at(register_number);
+
+            if(reg->tag == rb.tag){
+                reg->ready = true;
+                reg->tag = 0;
             }
         }
     }
