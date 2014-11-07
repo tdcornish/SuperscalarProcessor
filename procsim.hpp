@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <vector>
 #include <memory>
+#include <algorithm>
 #include <iostream>
 
 using namespace std;
@@ -25,6 +26,11 @@ typedef struct _proc_inst_t
 
     uint64_t tag;
 
+    int fetch;
+    int disp;
+    int sched;
+    int exec;
+    int state;
 } proc_inst_t;
 
 typedef struct _proc_stats_t
@@ -37,25 +43,45 @@ typedef struct _proc_stats_t
     unsigned long cycle_count;
 } proc_stats_t;
 
-typedef struct
+typedef struct reg
 {
     bool ready;
     int64_t tag;
+
+    reg(){
+        ready = true;
+        tag = 0;
+    }
 } reg;
 
 typedef struct {
+    proc_inst_t original_instruction;
     bool in_use;
     int fu;
     int dest_reg;
-    int64_t dest_reg_tag;
+    uint64_t dest_reg_tag;
     bool src1_ready;
-    int64_t src1_tag;
+    uint64_t src1_tag;
     bool src2_ready;
-    int64_t src2_tag;
+    uint64_t src2_tag;
     bool fired;
     bool completed;
     bool mark_for_delete;
 } reservation_station;
+
+typedef struct {
+    int type;
+    bool busy;
+    uint64_t tag;
+    uint64_t register_number;
+    bool completed;
+} function_unit;
+
+typedef struct {
+    bool busy;
+    uint64_t tag;
+    int register_number;
+} result_bus;
 
 class SchedulingQueue {
     vector<reservation_station>* scheduling_queue;
@@ -69,38 +95,37 @@ class SchedulingQueue {
     void printQueueSize(){
         cout << "Schedule Queue Size " <<  scheduling_queue->size() << endl;
     }
+    void printQueue(){
+        vector<reservation_station>::iterator entry;
+        printf("in use\tfu\tdest_reg\tdest_reg_tag\tsrc1_ready\tsrc1_tag\tsrc2_ready\tsrc2_tag\tfired\t     completed\t      delete\t\n");
+        for(entry=scheduling_queue->begin(); entry != scheduling_queue->end(); ++entry){
+            printf("%d \t %d \t %d \t\t %lld \t\t %d \t\t %lld \t\t %d \t\t %lld \t\t %d \t\t %d \t\t %d\n",
+                    entry->in_use, entry->fu, entry->dest_reg, entry->dest_reg_tag, entry->src1_ready, entry->src1_tag, entry->src2_ready, entry->src2_tag, entry->fired, entry->completed, entry->mark_for_delete);
+        }
+
+        printf("\n");
+    }
     void deleteInstructions();
     void markCompletedInstructionsForDeletion();
+    void readResultBuses(vector<result_bus>* result_buses);
     vector<reservation_station*>* getUnusedSlots(vector<proc_inst_t>* dispatch_queue);
 };
 
-typedef struct {
-    bool busy;
-    int64_t tag;
-    int64_t register_number;
-    bool completed;
-} function_unit;
-
-typedef struct {
-    bool busy;
-    uint64_t tag;
-    int register_number;
-} result_bus;
-
 class Scoreboard {
-    vector<function_unit>* k0_function_units;
-    vector<function_unit>* k1_function_units;
-    vector<function_unit>* k2_function_units;
-
-    vector<result_bus>* result_buses;
+    vector<function_unit>* function_units;
 
     public:
-    Scoreboard(uint64_t k0, uint64_t k1, uint64_t k2, uint64_t r){
-        k0_function_units = new vector<function_unit> (k0);
-        k1_function_units = new vector<function_unit> (k1);
-        k2_function_units = new vector<function_unit> (k2);
-
-        result_buses = new vector<result_bus> (r);
+    Scoreboard(uint64_t k0, uint64_t k1, uint64_t k2){
+        function_units = new vector<function_unit>;
+        for(uint64_t i = 0; i < k0; ++i){
+            function_units->push_back({0,0,0,0,0});
+        }
+        for(uint64_t i = 0; i < k1; ++i){
+            function_units->push_back({1,0,0,0,0});
+        }
+        for(uint64_t i = 0; i < k2; ++i){
+            function_units->push_back({2,0,0,0,0});
+        }
     }
 
     void broadcastCompletedInstructions();
@@ -117,6 +142,8 @@ void execute();
 void schedule();
 void dispatch();
 void fetch();
+void initReservationStation(reservation_station* entry);
+void readInstructions();
 
 
 #endif /* PROCSIM_HPP */
