@@ -1,0 +1,90 @@
+Processor Settings
+R: 2
+k0: 3
+k1: 2
+k2: 1
+F: 4
+
+state update
+execute
+schedule
+dispatch
+in use	fu	dest_reg	dest_reg_tag	src1_ready	src1_tag	src2_ready	src2_tag	fired	     completed	      delete	
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+
+fetch
+state update
+execute
+schedule
+dispatch
+in use	fu	dest_reg	dest_reg_tag	src1_ready	src1_tag	src2_ready	src2_tag	fired	     completed	      delete	
+1 	 1 	 -1 		 1 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 18 		 2 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 17 		 3 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 19 		 4 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+
+fetch
+state update
+execute
+schedule
+dispatch
+in use	fu	dest_reg	dest_reg_tag	src1_ready	src1_tag	src2_ready	src2_tag	fired	     completed	      delete	
+1 	 1 	 -1 		 1 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 18 		 2 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 17 		 3 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 19 		 4 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 19 		 5 		 1 		 0 		 0 		 2 		 0 		 0 		 0
+1 	 -1 	 -1 		 6 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 1 		 7 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 1 	 4 		 8 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+0 	 0 	 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0 		 0
+
+fetch
+state update
+execute
+schedule
+dispatch
+in use	fu	dest_reg	dest_reg_tag	src1_ready	src1_tag	src2_ready	src2_tag	fired	     completed	      delete	
+1 	 1 	 -1 		 1 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 18 		 2 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 17 		 3 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 19 		 4 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 19 		 5 		 1 		 0 		 0 		 2 		 0 		 0 		 0
+1 	 -1 	 -1 		 6 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 1 		 7 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 1 	 4 		 8 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 1 	 16 		 9 		 1 		 0 		 0 		 5 		 0 		 0 		 0
+1 	 -1 	 -1 		 10 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 1 	 -1 		 11 		 1 		 0 		 1 		 0 		 0 		 0 		 0
+1 	 0 	 18 		 12 		 0 		 2 		 1 		 0 		 0 		 0 		 0
+
+fetch
+Processor stats:
+Total instructions: 0
+Avg Dispatch queue size: 0.000000
+Maximum Dispatch queue size: 0
+Avg inst fired per cycle: 0.000000
+Avg inst retired per cycle: 0.000000
+Total run time (cycles): 0
