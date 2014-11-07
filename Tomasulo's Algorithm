@@ -1,0 +1,28 @@
+State Update:
+	Remove anything marked as "Deleted" from queue
+	Mark any completed instruction as "Deleted" (State Update cycle, instruction counts as "deleted" even though it's still in the queue for now)
+
+Execute:
+	Completed instructions put on available result buses and FU's freed up
+		-Any bus where busy == 0 put completed instructions (in tag order) in
+		-Set FU busy bit to 0
+	Set any uncompleted instructions in FU as completed. 
+	Completed instructions put on available result buses and FU's freed up
+		-Any bus where busy == 0 put completed instructions (in tag order) in
+		-Set FU busy bit to 0
+	Register file is updated by result buses
+		-Registers that match tag on bus are marked as ready.
+	Fire any instructions that can be fired
+		-Src1 ready and Src2 ready and !Fired
+
+Schedule:
+	Update scheduling queue from result buses
+		-Mark instructions on bus as completed in queue
+		-Update tags for where any Src ready == false
+		-Mark bus as free
+
+Dispatch:
+ 	Put instructions from dispatch queue into available reservation stations in scheduling queue
+
+Fetch:
+	Read F instructions and put them in the dispatch queue
