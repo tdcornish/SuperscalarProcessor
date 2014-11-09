@@ -56,7 +56,7 @@ typedef struct reg
     }
 } reg;
 
-typedef struct {
+typedef struct reservation_station{
     proc_inst_t original_instruction;
     bool in_use;
     int fu;
@@ -69,6 +69,9 @@ typedef struct {
     bool fired;
     bool completed;
     bool mark_for_delete;
+    bool operator<(const reservation_station& other_rs){
+        return dest_reg_tag < other_rs.dest_reg_tag;
+    }
 } reservation_station;
 
 typedef struct function_unit{
@@ -164,7 +167,6 @@ class Scoreboard {
     }
     void completeBusyUnits(int cycle_count){
         for(auto& fu : *busy_function_units){
-            fu.original_instruction->exec = cycle_count;
             fu.completed = true;
         }
         updateFunctionUnitQueues();
@@ -217,6 +219,12 @@ class SchedulingQueue {
     void readResultBuses(vector<result_bus>* result_buses);
     vector<reservation_station*>* getUnusedSlots(vector<proc_inst_t>* dispatch_queue);
     void fireInstructions(Scoreboard* scoreboard);
+    static bool sort_by_tag(reservation_station rs1, reservation_station rs2){
+        return rs1.dest_reg_tag < rs2.dest_reg_tag;
+    }
+    void sort(){
+        std::sort(scheduling_queue->begin(), scheduling_queue->end(), sort_by_tag);
+    }
 };
 
 bool read_instruction(proc_inst_t* p_inst);
@@ -233,6 +241,6 @@ void dispatch();
 void fetch();
 void initReservationStation(reservation_station* entry);
 void readInstructions();
-
+void printResultBus();
 
 #endif /* PROCSIM_HPP */

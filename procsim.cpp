@@ -62,6 +62,7 @@ void run_proc(proc_stats_t* p_stats)
     while(completed_instruction_queue->size() != goal){
         ++cycle_count;
 
+        //printf("Cycle %d\n", cycle_count);
         if(dispatch_queue->size() > max_disp_size){
             max_disp_size = dispatch_queue->size();
         }
@@ -72,6 +73,11 @@ void run_proc(proc_stats_t* p_stats)
         schedule();
         dispatch();
         fetch();
+
+        //schedule_queue->printQueue();
+        //scoreboard->printFunctionUnits();
+        //printResultBus();
+        //printf("\n\n");
     }
 
     p_stats->retired_instruction = completed_instruction_queue->size();
@@ -94,6 +100,7 @@ void complete_proc(proc_stats_t *p_stats)
     for(auto inst : *completed_instruction_queue){
         printf("%d\t%d\t%d\t%d\t%d\t%d\n", inst.inst_number, inst.fetch, inst.disp, inst.sched, inst.exec, inst.state);
     }
+    printf("\n");
     delete(scoreboard);
     delete(schedule_queue);
     delete(register_file);
@@ -136,6 +143,8 @@ void dispatch(){
             break;
         }
     }
+
+    schedule_queue->sort();
 }
 
 void fetch(){
@@ -220,6 +229,12 @@ void readInstructions(){
     }
 }
 
+void printResultBus(){
+    for(auto rs : *result_buses){
+        printf("Busy: %d\tTag: %lld\t Reg: %d\n", rs.busy, rs.tag, rs.register_number);
+    }
+}
+
 //Class functions
 vector<reservation_station*>* SchedulingQueue::getUnusedSlots(vector<proc_inst_t>* dispatch_queue){
     vector<reservation_station*> *reserved_slots = new vector<reservation_station*>;
@@ -293,11 +308,12 @@ void SchedulingQueue::readResultBuses(vector<result_bus>* result_buses){
 
 void SchedulingQueue::fireInstructions(Scoreboard* scoreboard){
     for(auto& entry : *scheduling_queue){
-        if(entry.src1_ready && entry.src2_ready && !entry.fired){
+        if(entry.in_use && entry.src1_ready && entry.src2_ready && !entry.fired){
             function_unit* fu_to_use;
             bool found_available_fu = scoreboard->reserveAvailableFunctionUnit(entry.fu, fu_to_use);
 
             if(found_available_fu){
+                //printf("firing instruction %lld\n", entry.dest_reg_tag);
                 fu_to_use->busy = true;
                 fu_to_use->tag = entry.dest_reg_tag;
                 fu_to_use->register_number = entry.dest_reg;
@@ -305,6 +321,7 @@ void SchedulingQueue::fireInstructions(Scoreboard* scoreboard){
                 fu_to_use->original_instruction = &entry.original_instruction;
 
                 entry.fired = true;
+                entry.original_instruction.exec = cycle_count + 1;
             }
         }
     }
@@ -359,5 +376,3 @@ void Scoreboard::updateRegisterFile(vector<reg>* register_file){
         }
     }
 }
-
-
