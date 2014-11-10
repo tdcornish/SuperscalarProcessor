@@ -81,6 +81,7 @@ typedef struct function_unit{
     uint64_t register_number;
     bool completed;
     proc_inst_t* original_instruction;
+    int cycles_stalled;
     bool operator== (const function_unit &c1) {
         return (type == c1.type && busy == c1.busy && tag == c1.tag && register_number == c1.register_number
                 && completed == c1.completed);
@@ -171,21 +172,28 @@ class Scoreboard {
         }
         updateFunctionUnitQueues();
     }
+    void markStalledUnits(){
+        for(auto&fu : *completed_function_units){
+            if(fu.busy){
+                fu.cycles_stalled = fu.cycles_stalled + 1;
+            }
+        }
+    }
     void removeFunctionUnit(vector<function_unit>* function_unit_queue, function_unit fu){
         function_unit_queue->erase(remove(function_unit_queue->begin(), function_unit_queue->end(), fu), function_unit_queue->end());
     }
     void printFunctionUnits(){
         for(auto& fu : *available_function_units){
-            printf("available  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d\n",
-                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed);
+            printf("available  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d  stalled: %d\n",
+                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed, fu.cycles_stalled);
         }
         for(auto& fu : *busy_function_units){
-            printf("busy  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d\n",
-                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed);
+            printf("busy  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d  stalled: %d\n",
+                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed, fu.cycles_stalled);
         }
         for(auto& fu : *completed_function_units){
-            printf("completed  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d\n",
-                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed);
+            printf("completed  type: %d  busy: %d  tag: %lld  reg#: %lld  completed: %d  stalled: %d\n",
+                    fu.type, fu.busy, fu.tag, fu.register_number, fu.completed, fu.cycles_stalled);
         }
     }
 };

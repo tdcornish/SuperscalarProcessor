@@ -17,6 +17,8 @@ int cycle_count;
 uint64_t inst_count;
 
 double dispatch_size_per_cycle;
+double instructions_fired_per_cycle;
+double instructions_retired_per_cycle;
 
 /**
  * Subroutine for initializing the processor. You many add and initialize any global or heap
@@ -44,6 +46,10 @@ void setup_proc(uint64_t r, uint64_t k0, uint64_t k1, uint64_t k2, uint64_t f)
     number_of_instructions_to_fetch = f;
     number_of_results_buses = r;
     inst_count = 0;
+
+    dispatch_size_per_cycle = 0;
+    instructions_fired_per_cycle = 0;
+    instructions_retired_per_cycle = 0;
 }
 
 /**
@@ -83,6 +89,8 @@ void run_proc(proc_stats_t* p_stats)
     p_stats->retired_instruction = completed_instruction_queue->size();
     p_stats->avg_disp_size = dispatch_size_per_cycle/cycle_count;
     p_stats->max_disp_size = max_disp_size;
+    p_stats->avg_inst_fired = instructions_fired_per_cycle/cycle_count;
+    p_stats->avg_inst_retired = instructions_retired_per_cycle/cycle_count;
     p_stats->cycle_count = cycle_count;
 }
 
@@ -123,6 +131,7 @@ void execute(){
     scoreboard->broadcastCompletedInstructions();
     scoreboard->completeBusyUnits(cycle_count);
     scoreboard->broadcastCompletedInstructions();
+    scoreboard->markStalledUnits();
     scoreboard->updateRegisterFile(register_file);
     schedule_queue->fireInstructions(scoreboard);
 }
@@ -267,6 +276,7 @@ void SchedulingQueue::markCompletedInstructionsForDeletion(){
             entry.mark_for_delete = true;
             entry.original_instruction.state = cycle_count;
             completed_instruction_queue->push_back(entry.original_instruction);
+            ++instructions_retired_per_cycle;
         }
     }
 }
@@ -313,12 +323,14 @@ void SchedulingQueue::fireInstructions(Scoreboard* scoreboard){
             bool found_available_fu = scoreboard->reserveAvailableFunctionUnit(entry.fu, fu_to_use);
 
             if(found_available_fu){
+                ++instructions_fired_per_cycle;
                 //printf("firing instruction %lld\n", entry.dest_reg_tag);
                 fu_to_use->busy = true;
                 fu_to_use->tag = entry.dest_reg_tag;
                 fu_to_use->register_number = entry.dest_reg;
                 fu_to_use->completed = false;
                 fu_to_use->original_instruction = &entry.original_instruction;
+                fu_to_use->cycles_stalled = 0;
 
                 entry.fired = true;
                 entry.original_instruction.exec = cycle_count + 1;
@@ -334,8 +346,13 @@ void Scoreboard::broadcastCompletedInstructions(){
         if(!rb.busy && !completed_function_units->empty()){
             function_unit* lowestCompletedTag = &completed_function_units->front();
             for(auto& fu : *completed_function_units){
-                if(fu.tag < lowestCompletedTag->tag){
+                if(fu.cycles_stalled > lowestCompletedTag->cycles_stalled){
                     lowestCompletedTag = &fu;
+                }
+                else if(fu.cycles_stalled == lowestCompletedTag->cycles_stalled){
+                    if(fu.tag < lowestCompletedTag->tag){
+                        lowestCompletedTag = &fu;
+                    }
                 }
             }
 
