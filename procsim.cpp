@@ -118,15 +118,31 @@ void complete_proc(proc_stats_t *p_stats)
     delete(completed_instruction_queue);
 }
 
+/**
+ * Funtion to use when calling std::sort() on completed_instruction_queue to sort by instruction number.
+ */
 bool sort_by_inst_number(proc_inst_t i, proc_inst_t j){
     return i.inst_number < j.inst_number;
 }
 
+/**
+ * State update function of the processor:
+ *      Deletes any instructions marked for deletion from the queue, freeing them up for dispatch.
+ *      Marks and completed instructions for deletion the next cycle.
+ */
 void state_update(){
     schedule_queue->deleteInstructions();
     schedule_queue->markCompletedInstructionsForDeletion();
 }
 
+/**
+ * Execute function of the processor:
+ *      Completed instructions put on available result buses and FU's freed up
+ *      Set any uncompleted instructions in FU as completed.
+ *      Completed instructions put on available result buses and FU's freed up
+ *      Register file is updated by result buses
+ *      Fire any instructions that can be fired
+ */
 void execute(){
     scoreboard->broadcastCompletedInstructions();
     scoreboard->completeBusyUnits(cycle_count);
@@ -136,10 +152,18 @@ void execute(){
     schedule_queue->fireInstructions(scoreboard);
 }
 
+/**
+ * Schedule function of the processor:
+ *      Updates the schedule queue with whatever is on the result buses.
+ */
 void schedule(){
     schedule_queue->readResultBuses(result_buses);
 }
 
+/**
+ * Dispatch function of the processor:
+ *      Puts instructions from the dispatch queue into any available slots in the scheduling queue.
+ */
 void dispatch(){
     vector<reservation_station*>* unused_slots = schedule_queue->getUnusedSlots(dispatch_queue);
 
@@ -156,6 +180,10 @@ void dispatch(){
     schedule_queue->sort();
 }
 
+/**
+ * Fetch function of the processor:
+ *      Fetches F instructions from the instruction queue and puts them in the dispatch queue.
+ */
 void fetch(){
     if(!instruction_queue->empty()){
         for(int i = 0; i < number_of_instructions_to_fetch; ++i){
@@ -168,7 +196,9 @@ void fetch(){
     }
 }
 
-
+/**
+ * Initializes a reservation station in the scheduling queue by reading and updating the register file.
+ */
 void initReservationStation(reservation_station* entry){
     reservation_station* current_slot = entry;
     proc_inst_t inst = dispatch_queue->front();
@@ -225,6 +255,9 @@ void initReservationStation(reservation_station* entry){
     current_slot->dest_reg_tag = inst.tag;
 }
 
+/**
+ * Reads all instructions from the trace file into instruction_queue.
+ */
 void readInstructions(){
     proc_inst_t* current_instruction = new proc_inst_t();
     while(read_instruction(current_instruction)){
@@ -238,6 +271,9 @@ void readInstructions(){
     }
 }
 
+/**
+ * Helper function to print out result buses.
+ */
 void printResultBus(){
     for(auto rs : *result_buses){
         printf("Busy: %d\tTag: %lld\t Reg: %d\n", rs.busy, rs.tag, rs.register_number);
@@ -245,10 +281,13 @@ void printResultBus(){
 }
 
 //Class functions
+
+/**
+ * Gets all the currently available slots in the scheduling queue.
+ */
 vector<reservation_station*>* SchedulingQueue::getUnusedSlots(vector<proc_inst_t>* dispatch_queue){
     vector<reservation_station*> *reserved_slots = new vector<reservation_station*>;
 
-    vector<reservation_station>::iterator entry;
     for(auto& entry : *scheduling_queue){
         if(!entry.in_use){
             reserved_slots->push_back(&entry);
@@ -258,8 +297,10 @@ vector<reservation_station*>* SchedulingQueue::getUnusedSlots(vector<proc_inst_t
     return reserved_slots;
 }
 
+/**
+ * Deletes any instructions marked for deletion from the scheduling queue.
+ */
 void SchedulingQueue::deleteInstructions(){
-    vector<reservation_station>::iterator entry;
     for(auto& entry : *scheduling_queue){
         if(entry.mark_for_delete){
             entry.in_use = false;
@@ -270,6 +311,9 @@ void SchedulingQueue::deleteInstructions(){
     }
 }
 
+/**
+ * Marks any instructions that have completed for deletion in the next cycle.
+ */
 void SchedulingQueue::markCompletedInstructionsForDeletion(){
     for(auto& entry : *scheduling_queue){
         if(entry.completed && entry.in_use && !entry.mark_for_delete){
@@ -281,6 +325,9 @@ void SchedulingQueue::markCompletedInstructionsForDeletion(){
     }
 }
 
+/**
+ * Reads the result buses and updates the scheduling queue accordingly.
+ */
 void SchedulingQueue::readResultBuses(vector<result_bus>* result_buses){
     for(auto& entry : *scheduling_queue){
         if(!entry.src1_ready){
@@ -316,6 +363,9 @@ void SchedulingQueue::readResultBuses(vector<result_bus>* result_buses){
     }
 }
 
+/**
+ * Fires any instructions that are ready to fire and have an available function unit.
+ */
 void SchedulingQueue::fireInstructions(Scoreboard* scoreboard){
     for(auto& entry : *scheduling_queue){
         if(entry.in_use && entry.src1_ready && entry.src2_ready && !entry.fired){
@@ -341,6 +391,9 @@ void SchedulingQueue::fireInstructions(Scoreboard* scoreboard){
     scoreboard->updateFunctionUnitQueues();
 }
 
+/**
+ * Put any completed function units results on any available result buses, giving priority to instructions that have stalled the longest and then tag order.
+ */
 void Scoreboard::broadcastCompletedInstructions(){
     for(auto& rb : *result_buses){
         if(!rb.busy && !completed_function_units->empty()){
@@ -368,6 +421,9 @@ void Scoreboard::broadcastCompletedInstructions(){
     scoreboard->updateFunctionUnitQueues();
 }
 
+/**
+ * Return if there is an available function units of type k and sets there is sets fu to point to it.
+ */
 bool Scoreboard::reserveAvailableFunctionUnit(int k, function_unit*& fu){
     bool found = false;
     for(auto& function_unit : *available_function_units){
@@ -380,6 +436,9 @@ bool Scoreboard::reserveAvailableFunctionUnit(int k, function_unit*& fu){
     return found;
 }
 
+/**
+ * Updates the register file with what is on the result buses.
+ */
 void Scoreboard::updateRegisterFile(vector<reg>* register_file){
     for(auto rb : *result_buses){
         int register_number = rb.register_number;
